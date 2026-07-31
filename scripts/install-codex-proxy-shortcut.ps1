@@ -91,54 +91,38 @@ if (-not (Test-Path -LiteralPath $configPath)) {
 
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 $originalConfig = [IO.File]::ReadAllText($configPath)
-$markerStart = "# BEGIN codex-proxy-shortcut managed provider"
-$markerEnd = "# END codex-proxy-shortcut managed provider"
 $managedPattern = "(?ms)^# BEGIN codex-proxy-shortcut managed provider\r?\n.*?^# END codex-proxy-shortcut managed provider\r?\n?"
-$configWithoutManagedBlock = [regex]::Replace($originalConfig, $managedPattern, "")
+$legacyManagedProviderFound = [regex]::IsMatch($originalConfig, $managedPattern)
+$updatedConfig = [regex]::Replace($originalConfig, $managedPattern, "")
 
-if ($configWithoutManagedBlock -match "(?m)^\s*\[model_providers\.codex_proxy_http\]\s*$") {
-  throw "A model_providers.codex_proxy_http table already exists outside this skill's managed block. Rename it or choose a manual merge."
-}
-
-$providerSelectionPattern = "(?m)^(?<indent>\s*)model_provider\s*=\s*.*$"
-$firstTable = [regex]::Match($configWithoutManagedBlock, "(?m)^\s*\[")
+# Older releases selected a custom codex_proxy_http provider to force HTTP/SSE.
+# The app's default thread/list request filters by the active provider, so that
+# selection made existing "openai" threads look missing. Preserve the built-in
+# provider id and let the process-scoped proxy carry both HTTPS and WebSockets.
+$legacyProviderSelectionPattern = '(?m)^(?<indent>\s*)model_provider\s*=\s*"codex_proxy_http"\s*$'
+$firstTable = [regex]::Match($updatedConfig, "(?m)^\s*\[")
 if ($firstTable.Success) {
-  $topLevelPrefix = $configWithoutManagedBlock.Substring(0, $firstTable.Index)
-  $tableContent = $configWithoutManagedBlock.Substring($firstTable.Index)
+  $topLevelPrefix = $updatedConfig.Substring(0, $firstTable.Index)
+  $tableContent = $updatedConfig.Substring($firstTable.Index)
 } else {
-  $topLevelPrefix = $configWithoutManagedBlock
+  $topLevelPrefix = $updatedConfig
   $tableContent = ""
 }
 
-$providerMatches = [regex]::Matches($topLevelPrefix, $providerSelectionPattern)
-if ($providerMatches.Count -gt 1) {
-  throw "Multiple top-level model_provider entries were found in config.toml. Resolve them before using this installer."
-}
-
-if ($providerMatches.Count -eq 1) {
-  $updatedTopLevelPrefix = [regex]::Replace(
+$legacyProviderSelectionFound = [regex]::IsMatch(
+  $topLevelPrefix,
+  $legacyProviderSelectionPattern
+)
+if ($legacyProviderSelectionFound) {
+  $topLevelPrefix = [regex]::Replace(
     $topLevelPrefix,
-    $providerSelectionPattern,
-    '${indent}model_provider = "codex_proxy_http"',
+    $legacyProviderSelectionPattern,
+    '${indent}model_provider = "openai"',
     1
   )
-} else {
-  $selection = "model_provider = `"codex_proxy_http`"`r`n"
-  $updatedTopLevelPrefix = $selection + "`r`n" + $topLevelPrefix
 }
-$updatedConfig = $updatedTopLevelPrefix + $tableContent
-
-$managedBlock = @"
-$markerStart
-[model_providers.codex_proxy_http]
-name = "ChatGPT HTTP/SSE"
-base_url = "https://chatgpt.com/backend-api/codex"
-wire_api = "responses"
-requires_openai_auth = true
-supports_websockets = false
-$markerEnd
-"@
-$updatedConfig = $updatedConfig.TrimEnd() + "`r`n`r`n" + $managedBlock.Trim() + "`r`n"
+$updatedConfig = $topLevelPrefix + $tableContent
+$legacyProviderRestored = $legacyManagedProviderFound -or $legacyProviderSelectionFound
 
 $launcherTemplate = @'
 param()
@@ -151,6 +135,10 @@ $proxy = "__PROXY_URI__"
 $proxyHost = "__PROXY_HOST__"
 $proxyPort = __PROXY_PORT__
 $noProxy = "localhost,127.0.0.1,::1,.local"
+
+# Pin the launcher to the same Codex home inspected during installation so the
+# normal shortcut and proxy shortcut see the same local task history.
+$env:CODEX_HOME = '__CODEX_HOME__'
 
 if (Get-Process -Name ChatGPT -ErrorAction SilentlyContinue) {
   throw "Codex/ChatGPT is already running. Quit it completely before using this shortcut."
@@ -190,15 +178,16 @@ Start-Process -FilePath $codexExe `
     "--proxy-server=$proxy",
     "--proxy-bypass-list=localhost;127.0.0.1;::1",
     "--disable-quic"
-  )
+)
 '@
 
-$launcherContent = $launcherTemplate.Replace("__PROXY_URI__", $proxyUri).Replace("__PROXY_HOST__", $ProxyHost).Replace("__PROXY_PORT__", [string]$ProxyPort)
+$escapedCodexHome = $codexHome.Replace("'", "''")
+$launcherContent = $launcherTemplate.Replace("__PROXY_URI__", $proxyUri).Replace("__PROXY_HOST__", $ProxyHost).Replace("__PROXY_PORT__", [string]$ProxyPort).Replace("__CODEX_HOME__", $escapedCodexHome)
 
 $backupPath = $null
 $configChanged = $updatedConfig -cne $originalConfig
 
-if ($configChanged -and $PSCmdlet.ShouldProcess($configPath, "Back up and configure the HTTP/SSE-only Codex provider")) {
+if ($configChanged -and $PSCmdlet.ShouldProcess($configPath, "Back up and remove the legacy history-hiding provider override")) {
   $backupPath = "$configPath.bak-codex-proxy-shortcut-$(Get-Date -Format 'yyyyMMdd-HHmmssfff')"
   [IO.File]::WriteAllText($backupPath, $originalConfig, $utf8NoBom)
   [IO.File]::WriteAllText($configPath, $updatedConfig, $utf8NoBom)
@@ -223,7 +212,7 @@ if ($PSCmdlet.ShouldProcess($shortcutPath, "Create or update the Codex desktop s
   $shortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$launcherPath`""
   $shortcut.WorkingDirectory = $launcherDirectory
   $shortcut.IconLocation = "$codexExe,0"
-  $shortcut.Description = "Start Codex through $proxyUri using HTTP/SSE transport"
+  $shortcut.Description = "Start Codex through the process-scoped proxy $proxyUri"
   $shortcut.Save()
 
   $savedShortcut = $shell.CreateShortcut($shortcutPath)
@@ -240,7 +229,9 @@ foreach ($name in @("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY")) {
 [pscustomobject]@{
   Status = if ($WhatIfPreference) { "Preview only" } else { "Installed" }
   Proxy = $proxyUri
-  HttpOnlyProvider = "codex_proxy_http"
+  ModelProvider = "openai (preserved)"
+  HistoryCompatibility = "Existing OpenAI task history remains visible"
+  LegacyProviderRestored = $legacyProviderRestored
   ConfigPath = $configPath
   ConfigChanged = $configChanged
   ConfigBackup = $backupPath
