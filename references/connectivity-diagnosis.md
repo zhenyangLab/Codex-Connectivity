@@ -1,6 +1,6 @@
-# Five Connecting diagnosis
+# Codex connectivity diagnosis
 
-## Core signature
+## Model response signature
 
 The user-visible sequence:
 
@@ -33,7 +33,31 @@ requires_openai_auth = true
 supports_websockets = false
 ```
 
-This changes Codex transport only. It does not configure an operating-system proxy. The generated launcher supplies the local proxy to the launched Codex process tree.
+This changes the model response transport only. It does not configure an operating-system proxy. The generated launcher supplies the local proxy to the launched Codex process tree.
+
+## Remote Control signature
+
+The UI may show:
+
+```text
+Unable to update remote control status
+```
+
+Relevant log targets include:
+
+```text
+codex_app_server_transport::transport::remote_control::websocket
+```
+
+Common failures include Windows socket error `10060` while connecting to:
+
+```text
+wss://chatgpt.com/backend-api/wham/remote/control/server
+```
+
+Do not disable Remote Control or delete its enrollment. The launcher must set both uppercase and lowercase `WS_PROXY` and `WSS_PROXY` before starting ChatGPT/Codex. This keeps the Remote Control transport on WebSocket while routing it through the same local HTTP proxy.
+
+After restarting through the shortcut, ask the user to enable Allow connections again and confirm that the UI accepts the change. Do not automate authentication or the toggle.
 
 ## Read-only log query
 
@@ -60,15 +84,13 @@ Avoid printing broad log bodies: they can contain task text and paths.
 
 ## Similar but separate problems
 
-### Remote Control WebSocket
+### Process-scoped proxy boundary
 
-Target:
+The launcher environment is inherited only by ChatGPT/Codex and its child processes. It does not create persistent User/Machine environment variables and does not modify Windows system proxy settings.
 
-```text
-codex_app_server_transport::transport::remote_control::websocket
-```
+This distinction matters for traffic usage: browsers, messaging clients, download tools, and unrelated applications retain their existing network configuration instead of consuming local proxy traffic.
 
-This is the optional cross-device Remote Control connection. It is not the Responses transport used for a normal model turn. Do not disable it as part of this skill.
+Remote Control is still a separate WebSocket path from normal model turns. Route it through the process proxy; do not treat disabling it as the connectivity fix.
 
 ### SSH reconnection
 
