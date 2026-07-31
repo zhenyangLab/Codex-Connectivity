@@ -20,20 +20,40 @@ sampling_error=request timed out
 sampling_error=stream disconnected before completion
 ```
 
-When HTTPS through a local proxy works but the Responses WebSocket path does not, Codex can spend all five retries on WebSocket before falling back to HTTP/SSE. The reliable workaround is an OpenAI-authenticated custom provider with WebSockets disabled:
+When HTTPS through a local proxy works but the Responses WebSocket path bypasses that proxy, Codex can spend all five retries on WebSocket before falling back to HTTP/SSE.
+
+Keep the built-in `openai` provider and route the WebSocket itself through the process-scoped proxy. The launcher must set uppercase and lowercase HTTP, HTTPS, WS, WSS, ALL, and NO proxy variables before starting Codex. It also passes Chromium proxy flags and disables QUIC.
+
+Do not use a custom provider as the default workaround. Codex defaults `thread/list` to the active provider ID, so selecting a different provider can hide intact tasks created under `openai`.
+
+## Missing history after the legacy shortcut
+
+Legacy versions of this Skill wrote:
 
 ```toml
 model_provider = "codex_proxy_http"
 
+# BEGIN codex-proxy-shortcut managed provider
 [model_providers.codex_proxy_http]
 name = "ChatGPT HTTP/SSE"
 base_url = "https://chatgpt.com/backend-api/codex"
 wire_api = "responses"
 requires_openai_auth = true
 supports_websockets = false
+# END codex-proxy-shortcut managed provider
 ```
 
-This changes the model response transport only. It does not configure an operating-system proxy. The generated launcher supplies the local proxy to the launched Codex process tree.
+This did not delete history. It changed the active provider ID, while older task metadata still used `openai`. Because an omitted `thread/list.modelProviders` filter defaults to the active provider, the sidebar excluded those older tasks.
+
+The current installer repairs this automatically:
+
+1. Back up `config.toml`.
+2. Remove only the managed legacy provider block.
+3. Replace only a top-level `model_provider = "codex_proxy_http"` selection with `model_provider = "openai"`.
+4. Leave session JSONL files and `state_5.sqlite` untouched.
+5. Pin process-local `CODEX_HOME` in the generated launcher so both shortcuts read the same history location.
+
+New installations never create the custom provider, so users do not need a separate history-repair step.
 
 ## Remote Control signature
 
@@ -92,13 +112,17 @@ This distinction matters for traffic usage: browsers, messaging clients, downloa
 
 Remote Control is still a separate WebSocket path from normal model turns. Route it through the process proxy; do not treat disabling it as the connectivity fix.
 
+### Provider-scoped task listing
+
+The active provider is also a history-list filter, not only a transport setting. Preserve the built-in `openai` provider for normal ChatGPT-authenticated Codex use. Never rewrite thread metadata or SQLite databases to compensate for a provider change.
+
 ### SSH reconnection
 
 Messages involving `ssh`, remote hosts, or an SSH-launched app server belong to remote project connectivity. They are outside this skill. Preserve `%USERPROFILE%\.ssh\config`.
 
-### HTTP/SSE timeout
+### WebSocket proxy timeout
 
-If `supports_websockets = false` is already active and `codex_core::responses_retry` continues, inspect the exact error and test:
+If `codex_core::responses_retry` continues after launching through the shortcut, inspect the exact error and test:
 
 ```powershell
 Test-NetConnection 127.0.0.1 -Port 12450 -InformationLevel Quiet
@@ -107,8 +131,11 @@ curl.exe --proxy http://127.0.0.1:12450 -I https://chatgpt.com/
 
 An HTTP status response proves the proxy path is reachable; authentication success is not required for this connectivity test.
 
+The HTTP test alone does not prove WebSocket tunneling works. Confirm that the proxy supports WebSocket CONNECT traffic to `wss://chatgpt.com` before changing Codex transport settings.
+
 ## Supporting sources
 
-- Codex configuration documents `model_provider`, `requires_openai_auth`, and `supports_websockets`: <https://developers.openai.com/codex/config-reference/>
+- Codex configuration documents the built-in `openai` provider and reserved provider IDs: <https://developers.openai.com/codex/config-reference/>
+- Codex app-server source defaults an omitted thread-list provider filter to the active provider: <https://github.com/openai/codex/blob/main/codex-rs/app-server/src/request_processors/thread_processor.rs>
 - OpenAI Codex issue describing five WebSocket retries before HTTP fallback: <https://github.com/openai/codex/issues/19821>
-- OpenAI Codex issue demonstrating the HTTP-only provider workaround: <https://github.com/openai/codex/issues/22634>
+- OpenAI Codex issue requesting a provider-preserving HTTPS-only switch: <https://github.com/openai/codex/issues/28503>

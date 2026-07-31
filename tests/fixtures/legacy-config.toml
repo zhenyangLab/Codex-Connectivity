@@ -1,0 +1,14 @@
+model = "gpt-5.6-sol"
+model_provider = "codex_proxy_http"
+
+[features]
+web_search = true
+
+# BEGIN codex-proxy-shortcut managed provider
+[model_providers.codex_proxy_http]
+name = "ChatGPT HTTP/SSE"
+base_url = "https://chatgpt.com/backend-api/codex"
+wire_api = "responses"
+requires_openai_auth = true
+supports_websockets = false
+# END codex-proxy-shortcut managed provider

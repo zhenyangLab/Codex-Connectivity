@@ -1,4 +1,4 @@
 interface:
   display_name: "Codex Connectivity"
-  short_description: "Stable Codex proxy and mobile connectivity"
-  default_prompt: "Use $codex-connectivity to isolate a Windows Codex proxy, remove five reconnect delays, and improve mobile Remote Control without changing system-wide proxy settings."
+  short_description: "Stable proxy, history, and mobile connectivity"
+  default_prompt: "Use $codex-connectivity to isolate a Windows Codex proxy, preserve existing task history, remove reconnect delays, and improve mobile Remote Control without changing system-wide proxy settings."
