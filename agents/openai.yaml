@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex Proxy Shortcut"
+  short_description: "Fix five reconnects with a per-process HTTP proxy"
+  default_prompt: "Use $codex-proxy-shortcut to create or repair a Windows Codex HTTP-proxy shortcut without changing system-wide proxy settings."
