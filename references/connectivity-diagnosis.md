@@ -55,6 +55,20 @@ The current installer repairs this automatically:
 
 New installations never create the custom provider, so users do not need a separate history-repair step.
 
+## Store update behavior
+
+The Microsoft Store installs each Codex version under a versioned WindowsApps directory. A shortcut that directly targets one `ChatGPT.exe` path or an old launcher can become stale after an update.
+
+The managed shortcut avoids that dependency:
+
+1. The shortcut targets stable Windows PowerShell plus the generated launcher, not `ChatGPT.exe`.
+2. The launcher runs `Get-AppxPackage -Name OpenAI.Codex`, sorts by version, and selects the newest package on every start.
+3. The launcher reapplies uppercase and lowercase HTTP, HTTPS, WS, WSS, ALL, and NO proxy variables on every start.
+4. The launcher pins the same `CODEX_HOME` so an app update cannot switch local history roots.
+5. After resolving the newest package, the launcher updates only the shortcut icon if it still references an older WindowsApps version. Icon-refresh failure is non-fatal.
+
+Therefore an ordinary Store update does not require a new shortcut. If five retries return after an update, inspect the launcher first: legacy launchers commonly contain only HTTP/HTTPS/ALL proxy variables and omit WS/WSS or `--disable-quic`.
+
 ## Remote Control signature
 
 The UI may show:

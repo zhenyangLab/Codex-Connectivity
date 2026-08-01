@@ -135,6 +135,7 @@ $proxy = "__PROXY_URI__"
 $proxyHost = "__PROXY_HOST__"
 $proxyPort = __PROXY_PORT__
 $noProxy = "localhost,127.0.0.1,::1,.local"
+$shortcutPath = '__SHORTCUT_PATH__'
 
 # Pin the launcher to the same Codex home inspected during installation so the
 # normal shortcut and proxy shortcut see the same local task history.
@@ -161,6 +162,23 @@ if (-not (Test-Path -LiteralPath $codexExe)) {
   throw "ChatGPT.exe was not found at: $codexExe"
 }
 
+# Store updates replace the versioned WindowsApps directory. Refresh only the
+# shortcut icon after resolving the newest package; the shortcut continues to
+# target this stable launcher and needs no manual recreation after an update.
+if (Test-Path -LiteralPath $shortcutPath) {
+  try {
+    $shell = New-Object -ComObject WScript.Shell
+    $shortcut = $shell.CreateShortcut($shortcutPath)
+    $newIconLocation = "$codexExe,0"
+    if ($shortcut.IconLocation -ne $newIconLocation) {
+      $shortcut.IconLocation = $newIconLocation
+      $shortcut.Save()
+    }
+  } catch {
+    Write-Warning "Codex will still start, but the shortcut icon could not be refreshed: $($_.Exception.Message)"
+  }
+}
+
 $proxyVariables = @(
   "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY",
   "http_proxy", "https_proxy", "all_proxy",
@@ -182,7 +200,8 @@ Start-Process -FilePath $codexExe `
 '@
 
 $escapedCodexHome = $codexHome.Replace("'", "''")
-$launcherContent = $launcherTemplate.Replace("__PROXY_URI__", $proxyUri).Replace("__PROXY_HOST__", $ProxyHost).Replace("__PROXY_PORT__", [string]$ProxyPort).Replace("__CODEX_HOME__", $escapedCodexHome)
+$escapedShortcutPath = $shortcutPath.Replace("'", "''")
+$launcherContent = $launcherTemplate.Replace("__PROXY_URI__", $proxyUri).Replace("__PROXY_HOST__", $ProxyHost).Replace("__PROXY_PORT__", [string]$ProxyPort).Replace("__CODEX_HOME__", $escapedCodexHome).Replace("__SHORTCUT_PATH__", $escapedShortcutPath)
 
 $backupPath = $null
 $configChanged = $updatedConfig -cne $originalConfig
@@ -237,6 +256,7 @@ foreach ($name in @("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY")) {
   ConfigBackup = $backupPath
   LauncherPath = $launcherPath
   ShortcutPath = $shortcutPath
+  AppUpdateBehavior = "Newest AppX selected at launch; shortcut icon self-refreshes"
   AppVersion = [string]$package.Version
   PersistentUserProxyVariables = $userProxyVariables
   SshConfigTouched = $false

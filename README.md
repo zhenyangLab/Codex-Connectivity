@@ -65,6 +65,33 @@ Codex 的任务列表默认按当前 provider 过滤。原任务仍属于 `opena
 
 用户无需额外执行历史修复命令。
 
+## 🔄 Codex 更新以后怎么办？
+
+普通 Microsoft Store / AppX 更新后，继续使用原来的代理快捷方式即可，不需要重新创建。
+
+启动器每次运行都会：
+
+1. 动态查找版本号最高的 `OpenAI.Codex` AppX 包
+2. 启动该版本中的 `app\ChatGPT.exe`
+3. 重新注入 HTTP、HTTPS、WS、WSS、ALL 和 NO proxy 变量
+4. 继续使用原来的 `CODEX_HOME` 和历史任务
+5. 如果快捷方式图标仍指向旧版 WindowsApps 路径，自动刷新为最新版图标
+
+桌面快捷方式始终指向稳定的 PowerShell 启动器，而不是某个固定版本的 `ChatGPT.exe`。图标刷新失败也不会阻止 Codex 启动。
+
+只有以下情况才需要再次运行 Skill：
+
+- 启动器来自旧版，缺少 `WS_PROXY/WSS_PROXY` 或 `--disable-quic`
+- 快捷方式不再指向生成的启动器
+- OpenAI 更新了网络实现，并且新日志再次出现固定 `1/5 → 5/5`
+
+可以直接请求：
+
+```text
+使用 $codex-connectivity 检查 Codex 更新后的代理快捷方式。
+保留历史记录，不要设置全局代理。
+```
+
 ## 📱 改善移动端 Remote Control
 
 在部分需要代理的网络中，打开 **设置 → 连接 → 控制此电脑 → 允许连接** 时，可能出现：
