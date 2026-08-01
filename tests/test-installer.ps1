@@ -67,6 +67,10 @@ try {
     Assert-True ($launcher.Contains('WS_PROXY')) "$case launcher should set WS_PROXY"
     Assert-True ($launcher.Contains('WSS_PROXY')) "$case launcher should set WSS_PROXY"
     Assert-True ($launcher.Contains($codexHome.Replace("'", "''"))) "$case launcher should preserve CODEX_HOME"
+    Assert-True ($launcher.Contains(([string]$result.ShortcutPath).Replace("'", "''"))) "$case launcher should know its shortcut path"
+    Assert-True ($launcher.Contains('Sort-Object Version -Descending')) "$case launcher should select the newest AppX package"
+    Assert-True ($launcher.Contains('$shortcut.IconLocation = $newIconLocation')) "$case launcher should self-refresh the versioned icon"
+    Assert-True ([string]$result.AppUpdateBehavior -like '*self-refreshes*') "$case installer should report update-safe behavior"
     Assert-True (((Get-FileHash -LiteralPath $sessionSentinel -Algorithm SHA256).Hash) -eq $sentinelHashBefore) "$case history files should remain unchanged"
 
     if ($case -eq "fresh") {

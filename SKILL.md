@@ -1,6 +1,6 @@
 ---
 name: codex-connectivity
-description: Diagnose and stabilize Windows Codex or ChatGPT Desktop connectivity when a local HTTP proxy is required. Create a process-scoped proxy launcher and desktop shortcut that preserve the built-in OpenAI provider and existing task history, route model and Remote Control WebSockets through the local proxy, address Connecting/Reconnecting 1/5 through 5/5 and "Unable to update remote control status," and repair legacy codex_proxy_http setups that hide older history. Use for Windows Codex proxy isolation, reduced proxy traffic, missing history after a proxy shortcut, Responses WebSocket failures, Remote Control connection failures, mobile connection instability, or shortcut repair after an AppX update. Never turn on a system-wide proxy or modify persistent User/Machine proxy variables, WinHTTP, routing, firewall, SSH configuration, or thread databases.
+description: Diagnose and stabilize Windows Codex or ChatGPT Desktop connectivity when a local HTTP proxy is required. Create an AppX-update-safe, process-scoped proxy launcher and desktop shortcut that preserve the built-in OpenAI provider and existing task history, route model and Remote Control WebSockets through the local proxy, address Connecting/Reconnecting 1/5 through 5/5 and "Unable to update remote control status," self-refresh the versioned shortcut icon, and repair legacy codex_proxy_http setups that hide older history. Use for Windows Codex proxy isolation, reduced proxy traffic, missing history after a proxy shortcut, Responses WebSocket failures, Remote Control connection failures, mobile connection instability, a stale launcher after a Store update, or shortcut repair after an AppX update. Never turn on a system-wide proxy or modify persistent User/Machine proxy variables, WinHTTP, routing, firewall, SSH configuration, or thread databases.
 ---
 
 # Codex Connectivity
@@ -51,6 +51,8 @@ Inspect without changing:
 - The newest `OpenAI.Codex` AppX package and `app\ChatGPT.exe`.
 - `%USERPROFILE%\.codex\config.toml`.
 - The requested desktop shortcut and launcher.
+- Whether the launcher dynamically selects the newest AppX package and contains HTTP, HTTPS, WS, WSS, `CODEX_HOME`, and `--disable-quic` settings.
+- Whether the shortcut icon still points to an older versioned WindowsApps directory.
 - User and Machine `HTTP_PROXY`, `HTTPS_PROXY`, and `ALL_PROXY` values.
 - Whether the legacy `codex_proxy_http` managed block or selection exists.
 
@@ -82,8 +84,15 @@ The script:
 4. Generates a launcher that sets uppercase and lowercase HTTP, HTTPS, WS, WSS, ALL, and NO proxy variables only in the launcher process.
 5. Starts the newest Store-installed `ChatGPT.exe` with Chromium proxy flags and QUIC disabled.
 6. Creates or repairs a desktop shortcut without binding it to a specific AppX version.
+7. Embeds the shortcut path in the launcher and refreshes its versioned icon after future Store updates without changing the shortcut target or proxy scope.
 
-### 4. Verify without restarting the active app
+### 4. Handle future AppX updates
+
+For an ordinary Codex Store update, keep using the same shortcut. The launcher resolves the newest `OpenAI.Codex` package on every start, reapplies all process-scoped proxy variables, preserves `CODEX_HOME`, and refreshes the icon when the versioned WindowsApps path changes.
+
+Re-run the installer only when the launcher is missing required proxy variables, the shortcut no longer targets the launcher, or a Codex networking change causes new retry logs. Do not recreate a custom provider as an update workaround.
+
+### 5. Verify without restarting the active app
 
 Verify:
 
@@ -91,6 +100,7 @@ Verify:
 - The active provider remains the built-in `openai` provider, explicitly or by default.
 - The launcher parses as PowerShell and contains HTTP, HTTPS, WS, and WSS proxy variables.
 - The launcher sets process-local `CODEX_HOME` to the same directory inspected during installation.
+- The launcher embeds the shortcut path, selects the newest AppX package, and contains best-effort icon self-refresh logic.
 - The shortcut targets Windows PowerShell and references the generated launcher.
 - The shortcut icon resolves to the newest Store-installed `ChatGPT.exe`.
 - User and Machine proxy variables were not created or changed.
@@ -98,7 +108,7 @@ Verify:
 
 Ask the user to completely quit Codex/ChatGPT and reopen it with the dedicated shortcut. Do not restart the app from the task that created the shortcut.
 
-### 5. Verify after restart
+### 6. Verify after restart
 
 For model responses:
 
@@ -122,4 +132,5 @@ If either WebSocket path still fails, test whether the local HTTP proxy supports
 - "Fix Codex Reconnecting 1/5 through 5/5 and reduce unnecessary proxy traffic."
 - "Fix Unable to update remote control status so my phone can connect to this computer."
 - "Rebuild the Codex connectivity shortcut after the Store app updates."
+- "Make my Codex proxy shortcut survive future Store updates without recreating it."
 - "My task history disappeared after installing the old proxy shortcut; restore it without editing the thread database."
