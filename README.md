@@ -1,222 +1,148 @@
-# 🚀 Codex Connectivity
+# Codex Connectivity
 
-> **只让 Codex 走代理，不让整台电脑走代理。**
->
-> 一个面向 Windows Codex / ChatGPT Desktop 的连接增强 Skill：减少无效重连、稳定移动端 Remote Control，同时保留原有账号、内置 `openai` provider 和全部历史任务。
+为 **Windows 与 macOS** 上的 Codex / ChatGPT Desktop 创建进程级代理启动器，帮助排查反复重连和 Remote Control 连接失败，同时保留现有 `CODEX_HOME` 和历史记录。
 
-![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?logo=windows)
-![Codex Skill](https://img.shields.io/badge/Codex-Skill-111111)
+![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4)
+![macOS](https://img.shields.io/badge/macOS-supported-333333)
 ![Proxy Scope](https://img.shields.io/badge/Proxy-Process--scoped-22A699)
-![History](https://img.shields.io/badge/History-Preserved-2EA44F)
 
-## ✨ 解决什么问题？
+## 使用时先问什么？
 
-| 问题 | 处理方式 | 效果 |
+调用 skill 后，会先主动列出选项：
+
+**1. 这次要配置的电脑是什么系统？**
+
+- Windows 10 / 11
+- macOS（Mac）
+- 不确定 / 其他系统
+
+**2. 本地代理的 HTTP 或 Mixed（混合）端口是多少？**
+
+- 我知道，输入端口（1–65535）
+- 不知道，帮我查看
+- 还没有代理软件 / 本地代理
+
+不知道时，继续选择查看代理软件设置、只读检查本机，或提供软件名按界面引导。已有明确答案时不会重复询问；不会把示例端口当作实际配置。
+
+## 代理端口一般在哪里看？
+
+优先打开代理客户端，进入 **设置 / 网络 / 端口 / 入站设置**，查找 **HTTP Port** 或 **Mixed Port / 混合端口**。菜单随软件版本有所不同。
+
+- Clash 系客户端：查看 HTTP 或混合端口；配置字段一般为 `port` 或 `mixed-port`。
+- v2rayN / v2rayU 等：查看本地监听或入站配置中的 HTTP / 混合端口，部分版本也在状态栏显示。
+- Mac：系统设置 → 网络 → 当前连接 → 详细信息 → 代理，可查看已有网页代理地址和端口。[Apple 设置说明](https://support.apple.com/guide/mac-help/mchlp2591/mac)
+- Windows：设置 → 网络和 Internet → 代理，可查看已有手动代理地址和端口。
+
+**无需为了查看端口启用系统代理。** 系统代理未开启时，系统设置中的值可能为空或过期，以客户端当前配置为准。需要的是本机 HTTP / Mixed 端口，不能直接用节点服务器、SOCKS-only 或控制面板/API 的端口。详见 [端口查找指南](references/proxy-port.md)。
+
+## 安装为 skill
+
+Windows（PowerShell）：
+
+```powershell
+$skillRoot = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $env:USERPROFILE '.codex' }
+git clone https://github.com/zhenyangLab/Codex-Connectivity.git `
+  (Join-Path $skillRoot 'skills\codex-connectivity')
+```
+
+macOS（终端）：
+
+```bash
+git clone https://github.com/zhenyangLab/Codex-Connectivity.git \
+  "${CODEX_HOME:-$HOME/.codex}/skills/codex-connectivity"
+```
+
+若目标目录已经存在，请在原目录更新，避免覆盖本地修改。重新打开应用后调用：
+
+```text
+使用 $codex-connectivity 帮我配置代理。
+先让我选择电脑系统和代理端口；不知道端口时引导我查看。
+保留历史记录，只为 Codex 创建进程级代理启动器。
+```
+
+## 平台支持
+
+| 项目 | Windows | macOS |
 |---|---|---|
-| Codex 出现 `Connecting/Reconnecting 1/5 ... 5/5` | 将 HTTP、HTTPS、WS、WSS 代理仅注入 Codex 进程树 | 让 Responses WebSocket 正确经过本地代理 |
-| 不想让浏览器、微信、下载器等软件消耗代理流量 | 不设置系统代理，不写入持久环境变量 | 大幅减少无关代理流量 |
-| 开启“允许移动端连接”时提示“无法更新远程控制状态” | 让 Remote Control WebSocket 继承同一进程级代理 | 提高手机连接电脑端的稳定性 |
-| 旧版代理 Skill 启动后看不到历史任务 | 自动移除旧版 `codex_proxy_http` provider 并恢复 `openai` | 历史记录自动重新显示，无需修改数据库 |
-| Codex 更新后安装路径变化 | 启动时动态查找最新 `OpenAI.Codex` AppX | 快捷方式不绑定旧版本路径 |
+| 安装器 | PowerShell `.ps1` | 系统 Bash `.sh`，无需 Homebrew / Python |
+| 桌面入口 | `.lnk` 快捷方式 | 可双击的 `.command` 文件 |
+| 应用定位 | 每次查找最新 `OpenAI.Codex` AppX | 检查 `/Applications`、`~/Applications`，读取应用包实际可执行文件 |
+| 更新适配 | 自动查找新版包，刷新图标 | 应用包路径不变时，每次重新读取内部可执行文件 |
+| 历史记录 | 保留同一 `CODEX_HOME` | 保留同一 `CODEX_HOME` |
+| 旧 provider 修复 | 备份后自动修复旧版托管配置 | 检测到旧配置时停止，先检查、备份并单独修复 |
 
-## 🧭 代理范围：只有 Codex
+Linux 暂不支持。Mac 上安装了多个候选应用时，需要指定目标应用。应用自身必须支持当前电脑硬件。
 
-```mermaid
-flowchart LR
-    A["专用桌面快捷方式"] --> B["Codex / ChatGPT 进程树"]
-    B --> C["本地 HTTP 代理<br/>127.0.0.1:12450"]
-    C --> D["ChatGPT / Codex 服务"]
-    E["浏览器、微信、下载器等其他软件"] --> F["保持原来的网络方式"]
-```
+## 手动运行
 
-代理变量只存在于启动脚本及其创建的 Codex 子进程中。关闭 Codex 后，这些临时变量也随进程消失。
+以下端口 `7897` **仅为示例**，请替换为确认过的 HTTP / 混合端口。运行命令前进入本项目目录。
 
-本方案不会：
-
-- ❌ 修改 Windows 系统代理、WinINET 或 WinHTTP
-- ❌ 写入持久化的用户或系统代理环境变量
-- ❌ 让其他无关软件自动消耗代理流量
-- ❌ 修改注册表代理项、路由或防火墙
-- ❌ 修改 `%USERPROFILE%\.ssh\config`
-- ❌ 修改、迁移或删除 Codex 历史数据库
-
-## 🗂️ 历史记录安全
-
-### 新安装
-
-新版安装脚本始终保留 Codex 内置的 `openai` provider，不再通过自定义 provider 强制 HTTP/SSE。正常快捷方式和代理快捷方式使用相同的 `CODEX_HOME`，因此看到的是同一批本地任务。
-
-### 从旧版升级
-
-旧版 Skill 曾写入：
-
-```toml
-model_provider = "codex_proxy_http"
-```
-
-Codex 的任务列表默认按当前 provider 过滤。原任务仍属于 `openai`，因此切换 provider 后会看起来“全部消失”，但数据实际上没有被删除。
-
-再次运行新版安装脚本时会自动：
-
-1. 备份当前 `config.toml`
-2. 删除仅由旧版 Skill 管理的 provider 配置块
-3. 将旧版 `codex_proxy_http` 选择恢复为 `openai`
-4. 保留所有 session JSONL、`state_5.sqlite` 和账号数据
-
-用户无需额外执行历史修复命令。
-
-## 🔄 Codex 更新以后怎么办？
-
-普通 Microsoft Store / AppX 更新后，继续使用原来的代理快捷方式即可，不需要重新创建。
-
-启动器每次运行都会：
-
-1. 动态查找版本号最高的 `OpenAI.Codex` AppX 包
-2. 启动该版本中的 `app\ChatGPT.exe`
-3. 重新注入 HTTP、HTTPS、WS、WSS、ALL 和 NO proxy 变量
-4. 继续使用原来的 `CODEX_HOME` 和历史任务
-5. 如果快捷方式图标仍指向旧版 WindowsApps 路径，自动刷新为最新版图标
-
-桌面快捷方式始终指向稳定的 PowerShell 启动器，而不是某个固定版本的 `ChatGPT.exe`。图标刷新失败也不会阻止 Codex 启动。
-
-只有以下情况才需要再次运行 Skill：
-
-- 启动器来自旧版，缺少 `WS_PROXY/WSS_PROXY` 或 `--disable-quic`
-- 快捷方式不再指向生成的启动器
-- OpenAI 更新了网络实现，并且新日志再次出现固定 `1/5 → 5/5`
-
-可以直接请求：
-
-```text
-使用 $codex-connectivity 检查 Codex 更新后的代理快捷方式。
-保留历史记录，不要设置全局代理。
-```
-
-## 📱 改善移动端 Remote Control
-
-在部分需要代理的网络中，打开 **设置 → 连接 → 控制此电脑 → 允许连接** 时，可能出现：
-
-![Codex 无法更新远程控制状态](./assets/remote-control-error.png)
-
-模型 Responses 和 Remote Control 都可能使用 WebSocket，但它们是不同的连接路径。启动器会同时设置：
-
-```text
-HTTP_PROXY / HTTPS_PROXY
-WS_PROXY / WSS_PROXY
-ALL_PROXY / NO_PROXY
-```
-
-这些变量只属于 Codex 进程树，因此既能帮助模型连接和 Remote Control 使用本地代理，也不会扩大到整台电脑。
-
-> [!NOTE]
-> 最终稳定性仍取决于本地代理节点、WebSocket CONNECT 支持、网络质量和账号功能可用性。本 Skill 不会关闭 Remote Control，也不会删除移动端配对记录。
-
-## 🧠 为什么会出现五次 Connecting？
-
-部分网络可以通过 HTTP 代理访问 HTTPS，却没有让 Codex 的 Responses WebSocket 正确使用该代理。Codex 会连续尝试后再回退，界面因此显示：
-
-```text
-Reconnecting... 1/5
-Reconnecting... 2/5
-Reconnecting... 3/5
-Reconnecting... 4/5
-Reconnecting... 5/5
-```
-
-本 Skill 将 HTTP、HTTPS、WS、WSS 和 Chromium 代理参数一次性注入专用快捷方式启动的 Codex 进程，同时保留内置 `openai` provider。这样既处理连接路径，也不会因为 provider 变化隐藏历史任务。
-
-## 📦 安装为 Codex Skill
-
-```powershell
-git clone https://github.com/zhenyangLab/codex-proxy.git `
-  "$env:USERPROFILE\.codex\skills\codex-connectivity"
-```
-
-重新打开 Codex 后，可以直接请求：
-
-```text
-使用 $codex-connectivity，给 Windows Codex 配置 127.0.0.1:12450。
-只让 Codex 走代理，保留历史记录，并改善移动端连接。
-```
-
-## 🛠️ 手动运行
-
-### 1. 只读预览
+Windows：
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass `
   -File ".\scripts\install-codex-proxy-shortcut.ps1" `
-  -ProxyHost "127.0.0.1" `
-  -ProxyPort 12450 `
-  -WhatIf
+  -ProxyHost "127.0.0.1" -ProxyPort 7897 -WhatIf
 ```
 
-### 2. 创建或升级快捷方式
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass `
-  -File ".\scripts\install-codex-proxy-shortcut.ps1" `
-  -ProxyHost "127.0.0.1" `
-  -ProxyPort 12450
-```
-
-默认生成：
+移除 `-WhatIf` 后生成文件。默认位置：
 
 ```text
-桌面快捷方式：
-%USERPROFILE%\Desktop\Codex-HTTP-Proxy-12450.lnk
-
-启动脚本：
-D:\Codex\codex-proxy-shortcuts\127.0.0.1-12450\Launch-Codex-With-Proxy.ps1
+%LOCALAPPDATA%\Codex\codex-proxy-shortcuts\127.0.0.1-7897\Launch-Codex-With-Proxy.ps1
+桌面\Codex-HTTP-Proxy-7897.lnk
 ```
 
-代理暂未启动、但需要预先创建文件时：
+macOS：
+
+```bash
+bash ./scripts/install-codex-proxy-shortcut.sh \
+  --proxy-host 127.0.0.1 --proxy-port 7897 --dry-run
+```
+
+移除 `--dry-run` 后生成 `~/Desktop/Codex-HTTP-Proxy-7897.command`。需要指定应用时添加：
+
+```bash
+--app-path "/Applications/Codex.app"
+```
+
+也支持目标 `ChatGPT.app`，以实际安装为准。多应用共存时不能自动猜测；应用移动或改名后重新安装启动器。`.command` 在终端中执行，应用运行期间终端窗口可能保持打开。
+
+两平台均提供离线生成选项（Windows：`-SkipProxyCheck`；Mac：`--skip-proxy-check`），但启动器运行时仍检查端口。端口监听检查不能证明它是 HTTP 代理，更不能证明 WebSocket 可用。
+
+## 生成以后如何验证？
+
+1. 先完成当前任务，完全退出应用（Mac 用 ⌘Q，关闭窗口不等于退出）。安装器不会重启应用。
+2. 确认本地代理客户端已启动，通过新建的专用桌面入口打开应用。
+3. 确认原有历史任务显示正常，发起一个新请求检查重连情况。
+4. 需要 Remote Control 时，在应用的连接设置中手动开启允许连接，并检查新日志及手机连接。
+
+模型 Responses 与 Remote Control 是不同连接路径。启动器为进程树设置大写/小写 HTTP、HTTPS、WS、WSS、ALL、NO proxy 变量，并传递 Chromium 代理参数和 `--disable-quic`。实际支持情况随应用版本、传输组件和代理节点而变；生成文件或 HTTP 请求成功不代表两条路径都已验证。
+
+## 配置与历史记录
+
+启动器保留安装时检查过的 `CODEX_HOME`（未设置时是用户目录的 `.codex`），不会创建另一份历史目录，也不通过切换自定义 provider 强制传输方式。
+
+旧版 Windows skill 曾选择 `codex_proxy_http`，可能让原 `openai` 任务看起来消失。Windows 安装器会在备份后移除旧托管块并恢复旧选择。Mac 安装器遇到这些标记会停止，不会用文本匹配直接改写 TOML。任何修复都不编辑 session JSONL、线程 SQLite 数据库或账号/配对数据。
+
+## 代理范围与边界
+
+环境变量只属于启动器和其创建的应用进程树。其他应用保持既有网络设置；如果用户原先已经开启系统代理或 TUN，它们仍可能受原配置影响。
+
+本项目不更改系统代理、WinHTTP、注册表代理项、路由、防火墙、持久环境变量、shell 启动文件或 `launchctl` 登录会话变量，不修改 SSH 配置或签名应用包内容。默认只允许同机回环地址；远端代理需明确批准后启用相应选项。本 skill 不提供代理服务，也不处理 SSH 登录服务器。
+
+## 开发验证
+
+macOS（使用临时假应用和本地监听端口，不启动实际 Codex）：
+
+```bash
+python3 -m unittest discover -s tests -p 'test_macos*.py' -v
+bash -n scripts/install-codex-proxy-shortcut.sh
+```
+
+Windows（需要已安装 Store 应用）：
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass `
-  -File ".\scripts\install-codex-proxy-shortcut.ps1" `
-  -ProxyHost "127.0.0.1" `
-  -ProxyPort 12450 `
-  -SkipProxyCheck
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\test-installer.ps1
 ```
 
-## ✅ 使用步骤
-
-1. 完全退出 Codex / ChatGPT，包括后台进程。
-2. 确认本地 HTTP 代理正在监听指定端口。
-3. 运行一次新版安装脚本；旧版 provider 配置会自动安全恢复。
-4. 通过新建的专用快捷方式启动 Codex。
-5. 确认原有历史任务仍然显示，并发起新请求检查是否还有固定五次重连。
-6. 如需移动端控制，在 Codex 连接设置中重新启用“允许连接”。
-
-## 🔐 安全设计
-
-- 新安装不会修改 `config.toml`
-- 仅在发现旧版托管 provider 时修改配置，并先创建时间戳备份
-- 默认只允许 `127.0.0.1`、`localhost` 或 `::1` 代理
-- 启动器检测到 Codex 已运行时会停止并提示完全退出
-- 支持 `-WhatIf` 预览将执行的操作
-- 不修改 Remote Control 配对、线程数据库或 SSH 配置
-
-## 📁 文件结构
-
-```text
-codex-proxy/
-├── README.md
-├── SKILL.md
-├── agents/
-│   └── openai.yaml
-├── assets/
-│   └── remote-control-error.png
-├── references/
-│   └── connectivity-diagnosis.md
-└── scripts/
-    └── install-codex-proxy-shortcut.ps1
-```
-
-## 📚 相关资料
-
-- [Codex configuration reference](https://developers.openai.com/codex/config-reference/)
-- [Codex thread-list provider filtering](https://github.com/openai/codex/blob/main/codex-rs/app-server/src/request_processors/thread_processor.rs)
-- [Responses WebSocket retries before HTTP fallback](https://github.com/openai/codex/issues/19821)
-- [Provider-preserving HTTPS-only option request](https://github.com/openai/codex/issues/28503)
+平台细节见 [macOS](references/macos.md)、[Windows](references/windows.md) 和 [连接诊断](references/connectivity-diagnosis.md)。官方应用信息见 [OpenAI 文档](https://developers.openai.com/codex/app)。

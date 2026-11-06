@@ -1,4 +1,4 @@
 interface:
   display_name: "Codex Connectivity"
-  short_description: "Update-safe proxy, history, and mobile connectivity"
-  default_prompt: "Use $codex-connectivity to create an AppX-update-safe Windows Codex proxy shortcut, preserve existing task history, remove reconnect delays, and improve mobile Remote Control without changing system-wide proxy settings."
+  short_description: "Windows/macOS proxy setup with guided port selection"
+  default_prompt: "使用 $codex-connectivity，先列出选项询问我要配置 Windows 还是 macOS，以及本地 HTTP/混合代理端口；不知道端口时引导查看，再创建保留历史记录的进程级代理启动器。"

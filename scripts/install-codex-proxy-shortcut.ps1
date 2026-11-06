@@ -4,16 +4,16 @@ param(
   [ValidatePattern("^[A-Za-z0-9.:-]+$")]
   [string]$ProxyHost = "127.0.0.1",
 
-  [Parameter()]
+  [Parameter(Mandatory = $true)]
   [ValidateRange(1, 65535)]
-  [int]$ProxyPort = 12450,
+  [int]$ProxyPort,
 
   [Parameter()]
   [string]$ShortcutName,
 
   [Parameter()]
   [ValidateNotNullOrEmpty()]
-  [string]$LauncherRoot = "D:\Codex\codex-proxy-shortcuts",
+  [string]$LauncherRoot = (Join-Path $env:LOCALAPPDATA "Codex\codex-proxy-shortcuts"),
 
   [Parameter()]
   [string]$ShortcutDirectory = [Environment]::GetFolderPath("Desktop"),
@@ -261,3 +261,4 @@ foreach ($name in @("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY")) {
   PersistentUserProxyVariables = $userProxyVariables
   SshConfigTouched = $false
 }
+
